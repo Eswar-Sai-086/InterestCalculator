@@ -1,40 +1,548 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-<meta charset="UTF-8">
-<title>Interest Calculator</title>
-<link rel="stylesheet" href="style.css">
-<script defer src="script.js"></script>
-</head>
-<body>
-<div class="glass">
-<h2 id="title">Interest Calculator (30/360)</h2>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>360-Day Interest Calculator — Premium</title>
 
-<label id="amountLabel">Principal Amount:</label>
-<input id="amount" type="number" placeholder="Enter amount">
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;800&display=swap" rel="stylesheet">
 
-<label id="fromLabel">From Date:</label>
-<input id="fromDate" type="date">
+    <style>
+      :root{
+        --bg-1: #081127;
+        --bg-2: #071829;
+        --card-bg: rgba(255,255,255,0.04);
+        --glass-border: rgba(255,255,255,0.08);
+        --accent: linear-gradient(90deg,#4f46e5,#06b6d4);
+        --glass-blur: 14px;
+        --muted: rgba(255,255,255,0.68);
+      }
 
-<label id="toLabel">To Date:</label>
-<input id="toDate" type="date">
+      html,body{height:100%;}
+      body{
+        font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial;
+        margin:0; min-height:100%; background: radial-gradient(800px 400px at 10% 10%, rgba(12,34,56,0.35), transparent 8%), radial-gradient(600px 360px at 90% 90%, rgba(6,12,32,0.4), transparent 10%), linear-gradient(180deg,var(--bg-1),var(--bg-2));
+        color:#e6eef8; -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale;
+      }
 
-<label id="rateLabel">Rate (per 100 per month):</label>
-<input id="rate" type="number" value="2">
+      /* floating accents */
+      .accent-blob{ position:fixed; width:520px; height:520px; right:-160px; top:-120px; filter:blur(80px); opacity:0.35; z-index:0; background:radial-gradient(circle at 30% 30%, rgba(99,102,241,0.9), rgba(6,182,212,0.9)); transform:rotate(22deg); }
+      .accent-blob.two{ left:-160px; bottom:-140px; background:radial-gradient(circle at 70% 70%, rgba(99,102,241,0.18), rgba(6,182,212,0.18)); }
 
-<label>Language:</label>
-<select id="language" onchange="changeLanguage()">
-  <option value="en">English</option>
-  <option value="te">తెలుగు</option>
-  <option value="hi">हिंदी</option>
-  <option value="ta">தமிழ்</option>
-  <option value="kn">ಕನ್ನಡ</option>
-  <option value="ml">മലയാളം</option>
-</select>
+      .wrap{ min-height:100vh; display:flex; align-items:center; justify-content:center; padding:40px; position:relative; z-index:1 }
 
-<button onclick="calculate()">Calculate</button>
+      /* Card */
+      .panel{
+        width:100%; max-width:1100px; padding:26px; border-radius:18px; background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.015));
+        backdrop-filter: blur(var(--glass-blur)); border:1px solid var(--glass-border); box-shadow: 0 18px 50px rgba(3,8,22,0.7);
+        display:grid; grid-template-columns: 1fr 420px; gap:20px;
+      }
 
-<h3 id="result"></h3>
-</div>
-</body>
+      .panel-left{ padding:10px 6px; }
+      .panel-right{ padding:16px; border-radius:12px; background: linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.008)); border:1px solid rgba(255,255,255,0.02); }
+
+      .brand{ display:flex; gap:12px; align-items:center }
+      .brand-badge{ width:60px; height:60px; border-radius:12px; display:flex; align-items:center; justify-content:center; background:linear-gradient(135deg,#334155,#0ea5a4); box-shadow: 0 8px 28px rgba(13,27,64,0.6); }
+      .brand-badge svg{ filter: drop-shadow(0 8px 30px rgba(0,0,0,0.6)); }
+      h1{ font-size:20px; margin:0; font-weight:700 }
+      p.lead{ margin:0; color:var(--muted); font-size:13px }
+
+      label.form-label{ color:#d9e9ff; font-weight:600; }
+      input.form-control, .form-select{ background: rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.03); color: #e9f2ff; }
+      input.form-control::placeholder{ color: rgba(255,255,255,0.45); }
+      .form-control:focus{ box-shadow: none; border-color: rgba(79,70,229,0.6); }
+
+      .btn-primary.custom{ background: linear-gradient(90deg,#4f46e5,#06b6d4); border:none; padding:12px 18px; font-weight:700; border-radius:10px; color:#021025 }
+      .btn-outline.custom{ background:transparent; border:1px solid rgba(255,255,255,0.04); color:var(--muted); border-radius:10px }
+
+      /* Result card styles */
+      .stat{ padding:16px; border-radius:12px; background:linear-gradient(180deg, rgba(255,255,255,0.015), rgba(255,255,255,0.01)); border:1px solid rgba(255,255,255,0.02); text-align:center }
+      .stat .value{ font-weight:800; font-size:1.35rem; margin-top:6px }
+      .muted-small{ font-size:13px; color:var(--muted) }
+
+      pre.break{ background: rgba(255,255,255,0.02); padding:14px; border-radius:10px; color:#dff3ff; overflow:auto }
+
+      /* Responsive */
+      @media (max-width:991px){ .panel{ grid-template-columns: 1fr; } .panel-right{ order: -1 } }
+
+      /* subtle motion */
+      .panel{ transform: translateY(12px); opacity:0; animation: lift .6s ease .08s forwards }
+      @keyframes lift{ to{ transform:none; opacity:1 } }
+
+    </style>
+  </head>
+  <body>
+
+    <div class="accent-blob" aria-hidden="true"></div>
+    <div class="accent-blob two" aria-hidden="true"></div>
+
+    <main class="wrap">
+      <section class="panel">
+
+        <!-- LEFT: Inputs -->
+        <div class="panel-left">
+          <div class="brand mb-3">
+            <div class="brand-badge">
+              <!-- icon -->
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M3 5h18v14H3z" fill="#fff" opacity="0.06"/><path d="M7 9h10v2H7z" fill="#fff" opacity="0.12"/></svg>
+            </div>
+            <div>
+              <h1 id="mainTitle">Interest Calculator — 30/360</h1>
+              <p id="mainLead" class="lead">Strict 30-day months. Year = 360 days. Rate shown as ₹ per ₹100 / month.</p>
+            </div>
+            <div class="ms-auto">
+              <select id="lang" class="form-select form-select-sm w-auto" aria-label="Language selector">
+                <option value="en">English</option>
+                <option value="te">తెలుగు</option>
+                <option value="hi">हिन्दी</option>
+                <option value="ta">தமிழ்</option>
+                <option value="kn">ಕನ್ನಡ</option>
+                <option value="ml">മലയാളം</option>
+              </select>
+            </div>
+          </div>
+
+          <form id="calcForm" onsubmit="return false;">
+            <div class="row g-3">
+              <div class="col-12">
+                <label id="lblAmount" class="form-label" for="amount">Principal Amount (₹)</label>
+                <input id="amount" type="number" class="form-control" placeholder="e.g. 5000" value="5000" min="0" step="0.01" aria-label="Principal amount">
+              </div>
+
+              <div class="col-md-6">
+                <label id="lblFrom" class="form-label" for="fromDate">From Date</label>
+                <input id="fromDate" type="date" class="form-control" aria-label="From date">
+              </div>
+              <div class="col-md-6">
+                <label id="lblTo" class="form-label" for="toDate">To Date</label>
+                <input id="toDate" type="date" class="form-control" aria-label="To date">
+              </div>
+
+              <div class="col-12">
+                <label id="lblRate" class="form-label" for="rate">Interest Rate (₹ per ₹100 per month)</label>
+                <div class="input-group">
+                  <input id="rate" type="number" class="form-control" value="2" step="0.01" min="0" aria-label="Rate">
+                  <span id="rateSuffix" class="input-group-text">₹ / ₹100 / mo</span>
+                </div>
+                <div id="helperRate" class="muted-small mt-1">Default: ₹2 per ₹100 per month. Change to adjust.</div>
+              </div>
+
+              <div class="col-12 d-flex gap-2 justify-content-end mt-2">
+                <button id="btnCalc" class="btn btn-primary custom" type="button">Calculate</button>
+                <button id="btnReset" type="button" class="btn btn-outline custom">Reset</button>
+              </div>
+            </div>
+          </form>
+
+        </div>
+
+        <!-- RIGHT: Results -->
+        <aside class="panel-right">
+          <div class="mb-2 d-flex justify-content-between align-items-center">
+            <div>
+              <div id="resultsLabel" class="muted-small">Results (360-day basis)</div>
+              <div class="h5 mb-0" id="resultHeadline">Summary</div>
+            </div>
+            <div id="eachMonthText" class="text-end muted-small">Each month = 30 days</div>
+          </div>
+
+          <div class="row g-3">
+            <div class="col-6">
+              <div class="stat">
+                <div id="lblOutDays" class="muted-small">Total Days</div>
+                <div id="outDays" class="value">0</div>
+              </div>
+            </div>
+
+            <div class="col-6">
+              <div class="stat">
+                <div id="lblOutMonths" class="muted-small">Total Months</div>
+                <div id="outMonths" class="value">0</div>
+              </div>
+            </div>
+
+            <div class="col-6">
+              <div class="stat">
+                <div id="lblOutRate" class="muted-small">Monthly Rate (₹/100)</div>
+                <div id="outRate" class="value">₹2.00</div>
+              </div>
+            </div>
+
+            <div class="col-6">
+              <div class="stat">
+                <div id="lblOutInterest" class="muted-small">Interest</div>
+                <div id="outInterest" class="value">₹0.00</div>
+              </div>
+            </div>
+
+            <div class="col-12">
+              <div class="stat">
+                <div id="lblOutTotal" class="muted-small">Total Amount (Principal + Interest)</div>
+                <div id="outTotal" class="value">₹0.00</div>
+              </div>
+            </div>
+
+            <div class="col-12">
+              <div id="lblBreakdown" class="muted-small mb-2">Calculation Breakdown</div>
+              <pre id="breakdown" class="break">—</pre>
+            </div>
+          </div>
+
+        </aside>
+
+      </section>
+    </main>
+
+
+    <script>
+      // translations for interface (mixed mode: numbers and ₹ remain same; text translated)
+      const translations = {
+        en: {
+          mainTitle: 'Interest Calculator — 30/360',
+          lead: 'Strict 30-day months. Year = 360 days. Rate shown as ₹ per ₹100 / month.',
+          amount: 'Principal Amount (₹)',
+          amountPlaceholder: 'e.g. 5000',
+          from: 'From Date',
+          to: 'To Date',
+          rate: 'Interest Rate (₹ per ₹100 per month)',
+          rateSuffix: '₹ / ₹100 / mo',
+          helperRate: 'Default: ₹2 per ₹100 per month. Change to adjust.',
+          calc: 'Calculate',
+          reset: 'Reset',
+          resultsLabel: 'Results (360-day basis)',
+          summary: 'Summary',
+          eachMonth: 'Each month = 30 days',
+          outDays: 'Total Days',
+          outMonths: 'Total Months',
+          outRate: 'Monthly Rate (₹/100)',
+          outInterest: 'Interest',
+          outTotal: 'Total Amount (Principal + Interest)',
+          breakdown: 'Calculation Breakdown',
+          alertInvalidAmount: 'Enter a valid principal amount',
+          alertSelectDates: 'Select both From and To dates',
+          alertToBeforeFrom: 'To Date must be same or after From Date',
+          daysSuffix: 'days',
+          monthsSuffix: 'months',
+          fromLabel: 'From',
+          toLabel: 'To',
+          calculationLabel: 'Calculation (strict 30/360):'
+        },
+        te: {
+          mainTitle: 'వడ్డీ గణకం — 30/360',
+          lead: 'ప్రతి సంవత్సరం 360 రోజులు. ప్రతి నెల = 30 రోజులు. రేటు ₹100కి నెలవారిగా చూపబడుతుంది.',
+          amount: 'మూలధనం (₹)',
+          amountPlaceholder: 'ఉదాహరణ: 5000',
+          from: 'ప్రారంభ తేదీ',
+          to: 'ముగింపు తేదీ',
+          rate: 'వడ్డీ రేటు (₹100కి నెలకు)',
+          rateSuffix: '₹ / ₹100 / నెల',
+          helperRate: 'డిఫాల్‍ట్: ₹2 ప్రతి ₹100కు నెలకు. మార్చండి.',
+          calc: 'లెక్కించు',
+          reset: 'రీసెట్',
+          resultsLabel: 'ఫలితాలు (360-దిన ఆధారం)',
+          summary: 'సారాంశం',
+          eachMonth: 'ప్రతి నెల = 30 రోజులు',
+          outDays: 'మొత్తం రోజులు',
+          outMonths: 'మొత్తం నెలలు',
+          outRate: 'నెలవారీ రేటు (₹/100)',
+          outInterest: 'వడ్డీ',
+          outTotal: 'మొత్తం మొత్తం (మూలధనం + వడ్డీ)',
+          breakdown: 'లెక్కింపు వివరాలు',
+          alertInvalidAmount: 'సరైన మూలధనాన్ని నమోదు చేయండి',
+          alertSelectDates: 'దయచేసి ప్రారంభం మరియు ముగింపు తేదీలను ఎంచుకోండి',
+          alertToBeforeFrom: 'ముగింపు తేదీ ప్రారంభ తేదీనికంటే పెద్దదుగా ఉండాలి లేదా సమానం కావాలి',
+          daysSuffix: 'రోజులు',
+          monthsSuffix: 'నెలలు',
+          fromLabel: 'From',
+          toLabel: 'To',
+          calculationLabel: 'లెక్కింపు (కఠిన 30/360 పద్దతి):'
+        },
+        hi: {
+          mainTitle: 'ब्याज कैलकुलेटर — 30/360',
+          lead: 'प्रति माह 30 दिन. वर्ष = 360 दिन. दर ₹100 पर प्रति माह दिखाई जाती है.',
+          amount: 'मूल राशि (₹)',
+          amountPlaceholder: 'उदा: 5000',
+          from: 'प्रारंभ तिथि',
+          to: 'समाप्ति तिथि',
+          rate: 'ब्याज दर (₹100 के लिए प्रति माह)',
+          rateSuffix: '₹ / ₹100 / माह',
+          helperRate: 'डिफ़ॉल्ट: ₹2 प्रति ₹100 प्रति माह. समायोजित करें.',
+          calc: 'गणना करें',
+          reset: 'रीसेट',
+          resultsLabel: 'परिणाम (360-दिन आधार)',
+          summary: 'सारांश',
+          eachMonth: 'प्रत्येक माह = 30 दिन',
+          outDays: 'कुल दिन',
+          outMonths: 'कुल महीने',
+          outRate: 'मासिक दर (₹/100)',
+          outInterest: 'ब्याज',
+          outTotal: 'कुल राशि (मूल + ब्याज)',
+          breakdown: 'गणना विवरण',
+          alertInvalidAmount: 'कृपया मान्य मूल राशि दर्ज करें',
+          alertSelectDates: 'कृपया प्रारंभ और समाप्ति तिथि चुनें',
+          alertToBeforeFrom: 'समाप्ति तिथि प्रारंभ तिथि के समान या बाद में होनी चाहिए',
+          daysSuffix: 'दिन',
+          monthsSuffix: 'महीने',
+          fromLabel: 'From',
+          toLabel: 'To',
+          calculationLabel: 'गणना (कठोर 30/360):'
+        },
+        ta: {
+          mainTitle: 'வட்டி கணக்கீடு — 30/360',
+          lead: 'ஒவ்வொரு மாதமும் 30 நாட்கள். ஆண்டு = 360 நாட்கள். விகிதம் ₹100க்கு மாதத்திற்கு காட்டப்படுகிறது.',
+          amount: 'மூலதனம் (₹)',
+          amountPlaceholder: 'உதா: 5000',
+          from: 'தொடக்க தேதி',
+          to: 'முடிவு தேதி',
+          rate: 'வட்டி வீதம் (₹100க்கு மாதம்)',
+          rateSuffix: '₹ / ₹100 / மாதம்',
+          helperRate: 'இயல்புநிலை: ₹2 प्रति ₹100 மாதம். மாற்றவும்.',
+          calc: 'கணக்கிடு',
+          reset: 'மீட்டமை',
+          resultsLabel: 'விளைவுகள் (360-நாள் அடிப்படை)',
+          summary: 'சுருக்கம்',
+          eachMonth: 'ஒவ்வொரு மாதமும் = 30 நாட்கள்',
+          outDays: 'மொத்த நாட்கள்',
+          outMonths: 'மொத்த மாதங்கள்',
+          outRate: 'மாதாந்திர விகிதம் (₹/100)',
+          outInterest: 'வட்டி',
+          outTotal: 'மொத்தத் தொகை (மூல + வட்டி)',
+          breakdown: 'கணக்கீட்டு விவரம்',
+          alertInvalidAmount: 'தயவுசெய்து செல்லும் தொகையை உள்ளிடவும்',
+          alertSelectDates: 'தொடக்கமும் முடிவும் தேதிகள் தேர்வு செய்யவும்',
+          alertToBeforeFrom: 'முடிவு தேதி தொடக்கம் அதற்கு மேல் அல்லது சமமாக இருக்க வேண்டும்',
+          daysSuffix: 'நாட்கள்',
+          monthsSuffix: 'மாதங்கள்',
+          fromLabel: 'From',
+          toLabel: 'To',
+          calculationLabel: 'கணக்குகள் (கடுமையான 30/360):'
+        },
+        kn: {
+          mainTitle: 'ಬಡ್ಡಿ ಕ್ಯಾಲ್ಕುಲೇಟರ್ — 30/360',
+          lead: 'ಪ್ರತಿ ತಿಂಗಳು 30 ದಿನಗಳು. ವರ್ಷ = 360 ದಿನಗಳು. ರೇಟು ₹100ಗೆ ತಿಂಗಳಿಗೆ ತೋರಿಸಲಾಗಿದೆ.',
+          amount: 'ಮುಖ್ಯ ಮೊತ್ತ (₹)',
+          amountPlaceholder: 'ಉದಾ: 5000',
+          from: 'ಪ್ರಾರಂಭದ ದಿನಾಂಕ',
+          to: 'ಅಂತ್ಯದ ದಿನಾಂಕ',
+          rate: 'ಬಡ್ಡಿ ದರ (₹100ಗೆ ತಿಂಗಳಿಗೆ)',
+          rateSuffix: '₹ / ₹100 / ತಿಂಗಳು',
+          helperRate: 'ಡೀಫಾಲ್‍ट: ₹2 ಪ್ರತಿ ₹100 ತಿಂಗಳಿಗೆ. ಹೊಂದಿಸಿ.',
+          calc: 'ಲೆಕ್ಕಿಸಿ',
+          reset: 'ರಿಸೆಟ್',
+          resultsLabel: 'ಫಲಿತಾಂಶಗಳು (360-ದಿನ ಆಧಾರ)',
+          summary: 'ಸಾರಾಂಶ',
+          eachMonth: 'ಪ್ರತಿ ತಿಂಗಳು = 30 ದಿನಗಳು',
+          outDays: 'ಒಟ್ಟು দিনಗಳು',
+          outMonths: 'ಒಟ್ಟು ತಿಂಗಳು',
+          outRate: 'ಮಾಸಿಕ ದರ (₹/100)',
+          outInterest: 'ಬಡ್ಡಿ',
+          outTotal: 'ಒಟ್ಟು ಮೊತ್ತ (ಮುಖ್ಯ + ಬಡ್ಡಿ)',
+          breakdown: 'ಲೆಕ್ಕಿಸುವ ವಿವರ',
+          alertInvalidAmount: 'ದಯವಿಟ್ಟು ಮಾನ್ಯ ಮೊತ್ತ ನಮೀದಿ',
+          alertSelectDates: 'ದಯವಿಟ್ಟು ಪ್ರಾರಂಭ ಮತ್ತು ಅಂತ್ಯ ದಿನಾಂಕಗಳನ್ನು ಆರಿಸಿ',
+          alertToBeforeFrom: 'ಅಂತ್ಯ ದಿನಾಂಕವು ಪ್ರಾರಂಭದ ದಿನಾಂಕದಂತೆ ಅಥವಾ ನಂತರವೇ ಇರಬೇಕು',
+          daysSuffix: 'ದಿನಗಳು',
+          monthsSuffix: 'ತಿಂಗಳು',
+          fromLabel: 'From',
+          toLabel: 'To',
+          calculationLabel: 'ಲೆಕ್ಕಾಚಾರ (ಕಠಿಣ 30/360):'
+        },
+        ml: {
+          mainTitle: 'പലിശ കാൽക്കുലേറ്റർ — 30/360',
+          lead: 'ഓരോ മാസം 30 ദിവസങ്ങൾ. വർഷം = 360 ദിവസം. നിരക്ക് ₹100ക്ക് പ്രതി മാസം കാണിക്കുന്നു.',
+          amount: 'പ്രധാന തുക (₹)',
+          amountPlaceholder: 'ഉദാ: 5000',
+          from: 'ആരംഭ തീയതി',
+          to: 'അവസാന തീയതി',
+          rate: 'പലിശ നിരക്ക് (₹100ക്ക് പ്രതി മാസം)',
+          rateSuffix: '₹ / ₹100 / മാസം',
+          helperRate: 'ഡീഫോൾട്: ₹2 प्रति ₹100 മാസം. ക്രമീകരിക്കുക.',
+          calc: 'പലിശ കണക്കുക',
+          reset: 'റീസെറ്റ്',
+          resultsLabel: 'ഫലങ്ങൾ (360-ദിന അടിസ്ഥാനത്തിൽ)',
+          summary: 'സാരാംശം',
+          eachMonth: 'ഓരോ മാസം = 30 ദിവസം',
+          outDays: 'മൊത്തം ദിവസങ്ങൾ',
+          outMonths: 'മൊത്തം മാസം',
+          outRate: 'മാസ തുക (₹/100)',
+          outInterest: 'പലിശ',
+          outTotal: 'മൊത്തം തുക (പ്രധാനം + പലിശ)',
+          breakdown: 'കണക്കുകൾ വിവരണം',
+          alertInvalidAmount: 'ദയവായി ശരിയായ തുക നൽകുക',
+          alertSelectDates: 'ദയവായി ആരംഭവും അവസാനവും തീയതികൾ തിരഞ്ഞെടുക്കുക',
+          alertToBeforeFrom: 'അവസാന തീയതി ആരംഭ തീയതിക്കു സമം അല്ലെങ്കിൽ മേല്‍ ആകണം',
+          daysSuffix: 'ദിവസങ്ങൾ',
+          monthsSuffix: 'മാസങ്ങൾ',
+          fromLabel: 'From',
+          toLabel: 'To',
+          calculationLabel: 'ഗണിതം (കഠിനമായ 30/360):'
+        }
+      };
+
+      // helper: format INR (numbers & currency retained in English format)
+      function fmtINR(n){
+        return '₹' + Number(n).toLocaleString('en-IN', {minimumFractionDigits:2, maximumFractionDigits:2});
+      }
+
+      // apply selected language to ALL UI text (including placeholders, helpers, breakdown words, alerts)
+      const langEl = document.getElementById('lang');
+      function applyLang(code){
+        const t = translations[code] || translations.en;
+
+        // Left panel
+        document.getElementById('mainTitle').innerText = t.mainTitle;
+        document.getElementById('mainLead').innerText = t.lead;
+        document.getElementById('lblAmount').innerText = t.amount;
+        document.getElementById('amount').placeholder = t.amountPlaceholder;
+        document.getElementById('lblFrom').innerText = t.from;
+        document.getElementById('lblTo').innerText = t.to;
+        document.getElementById('lblRate').innerText = t.rate;
+        document.getElementById('rate').placeholder = (t.amountPlaceholder === undefined) ? '' : t.amountPlaceholder;
+        document.getElementById('rateSuffix').innerText = t.rateSuffix;
+        document.getElementById('helperRate').innerText = t.helperRate;
+        document.getElementById('btnCalc').innerText = t.calc;
+        document.getElementById('btnReset').innerText = t.reset;
+
+        // Right panel
+        document.getElementById('resultsLabel').innerText = t.resultsLabel;
+        document.getElementById('resultHeadline').innerText = t.summary;
+        document.getElementById('eachMonthText').innerText = t.eachMonth;
+        document.getElementById('lblOutDays').innerText = t.outDays;
+        document.getElementById('lblOutMonths').innerText = t.outMonths;
+        document.getElementById('lblOutRate').innerText = t.outRate;
+        document.getElementById('lblOutInterest').innerText = t.outInterest;
+        document.getElementById('lblOutTotal').innerText = t.outTotal;
+        document.getElementById('lblBreakdown').innerText = t.breakdown;
+
+        // store these for use in calculation & breakdown
+        currentLang = code;
+      }
+
+      // current language code
+      let currentLang = 'en';
+      applyLang(currentLang);
+
+      langEl.addEventListener('change', e => {
+        applyLang(e.target.value);
+      });
+
+      // calculate function (strict 30/360)
+      function calculate(){
+        const t = translations[currentLang] || translations.en;
+
+        const amountEl = document.getElementById('amount');
+        const rateEl = document.getElementById('rate');
+
+        const amount = parseFloat(amountEl.value);
+        const rate = parseFloat(rateEl.value);
+        const from = document.getElementById('fromDate').value;
+        const to = document.getElementById('toDate').value;
+
+        // basic validation with translated alerts
+        if (isNaN(amount) || amount < 0){
+          alert(t.alertInvalidAmount);
+          amountEl.focus();
+          return;
+        }
+        if (!from || !to){
+          alert(t.alertSelectDates);
+          return;
+        }
+
+        const fd = new Date(from);
+        const td = new Date(to);
+        if (td < fd){
+          alert(t.alertToBeforeFrom);
+          return;
+        }
+
+        // Extract components (local time)
+        const fy = fd.getFullYear(); const fm = fd.getMonth() + 1; const fday = fd.getDate();
+        const ty = td.getFullYear(); const tm = td.getMonth() + 1; const tday = td.getDate();
+
+        const year_diff = ty - fy;
+        const month_diff = tm - fm;
+        const day_diff = tday - fday;
+
+        const total_days = year_diff * 360 + month_diff * 30 + day_diff;
+        const total_months = total_days / 30; // fractional
+
+        const interest = (amount / 100) * (isNaN(rate) ? 0 : rate) * total_months;
+        const totalAmount = amount + interest;
+
+        // Update right panel (numbers kept in English format)
+        document.getElementById('outDays').innerText = `${total_days} ${t.daysSuffix}`;
+        document.getElementById('outMonths').innerText = `${Number(total_months.toFixed(6))} ${t.monthsSuffix}`;
+        document.getElementById('outRate').innerText = `₹${(isNaN(rate) ? 0 : rate).toFixed(2)}`;
+        document.getElementById('outInterest').innerText = fmtINR(interest);
+        document.getElementById('outTotal').innerText = fmtINR(totalAmount);
+
+        // Breakdown (translate labels but keep numbers)
+        const lines = [];
+        lines.push(`${t.amount}: ₹${Number(amount).toFixed(2)}`);
+        lines.push(`${t.rate}: ₹${(isNaN(rate) ? 0 : rate).toFixed(2)} per ₹100 per month`);
+        lines.push('');
+        lines.push(`${t.fromLabel}: ${fy}-${String(fm).padStart(2,'0')}-${String(fday).padStart(2,'0')}`);
+        lines.push(`${t.toLabel}:   ${ty}-${String(tm).padStart(2,'0')}-${String(tday).padStart(2,'0')}`);
+        lines.push('');
+        lines.push(`${t.calculationLabel}`);
+        lines.push(`year_diff = ${year_diff}`);
+        lines.push(`month_diff = ${month_diff}`);
+        lines.push(`day_diff = ${day_diff}`);
+        lines.push('');
+        lines.push(`total_days = year_diff*360 + month_diff*30 + day_diff = ${year_diff}*360 + ${month_diff}*30 + ${day_diff} = ${total_days} ${t.daysSuffix}`);
+        lines.push(`total_months = total_days / 30 = ${total_months.toFixed(6)} ${t.monthsSuffix}`);
+        lines.push('');
+        lines.push(`Interest = (Principal / 100) * rate * total_months`);
+        lines.push(`         = (${amount.toFixed(2)} / 100) * ${(isNaN(rate)?0:rate).toFixed(4)} * ${total_months.toFixed(6)}`);
+        lines.push(`         = ₹${interest.toFixed(2)}`);
+        lines.push('');
+        lines.push(`Total Amount = Principal + Interest = ₹${totalAmount.toFixed(2)}`);
+
+        document.getElementById('breakdown').innerText = lines.join('\n');
+
+        // smooth focus on results
+        document.getElementById('outInterest').scrollIntoView({behavior:'smooth', block:'center'});
+      }
+
+      // wire actions
+      document.getElementById('btnCalc').addEventListener('click', calculate);
+      document.getElementById('btnReset').addEventListener('click', () => {
+        // reset values and UI
+        document.getElementById('amount').value = '5000';
+        document.getElementById('rate').value = '2';
+        const today = new Date(); const in30 = new Date(); in30.setDate(today.getDate()+30);
+        document.getElementById('fromDate').valueAsDate = today;
+        document.getElementById('toDate').valueAsDate = in30;
+        document.getElementById('outDays').innerText = `0 ${translations[currentLang].daysSuffix}`;
+        document.getElementById('outMonths').innerText = `0 ${translations[currentLang].monthsSuffix}`;
+        document.getElementById('outInterest').innerText = '₹0.00';
+        document.getElementById('outTotal').innerText = '₹0.00';
+        document.getElementById('breakdown').innerText = '—';
+      });
+
+      // init dates & UI
+      (function init(){
+        const today = new Date(); const in30 = new Date(); in30.setDate(today.getDate()+30);
+        document.getElementById('fromDate').valueAsDate = today;
+        document.getElementById('toDate').valueAsDate = in30;
+        // set correct suffixes on first load
+        document.getElementById('outDays').innerText = `0 ${translations[currentLang].daysSuffix}`;
+        document.getElementById('outMonths').innerText = `0 ${translations[currentLang].monthsSuffix}`;
+        // ensure rate suffix uses language
+        document.getElementById('rateSuffix').innerText = translations[currentLang].rateSuffix;
+      })();
+
+      // update rateSuffix when language changes
+      langEl.addEventListener('change', () => {
+        const t = translations[langEl.value] || translations.en;
+        document.getElementById('rateSuffix').innerText = t.rateSuffix;
+      });
+
+    </script>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+  </body>
 </html>
