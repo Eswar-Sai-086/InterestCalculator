@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Interest Calculator</title>
+<link rel="stylesheet" href="style.css">
+<script defer src="script.js"></script>
+</head>
+<body>
+<div class="glass">
+<h2 id="title">Interest Calculator (30/360)</h2>
+
+<label id="amountLabel">Principal Amount:</label>
+<input id="amount" type="number" placeholder="Enter amount">
+
+<label id="fromLabel">From Date:</label>
+<input id="fromDate" type="date">
+
+<label id="toLabel">To Date:</label>
+<input id="toDate" type="date">
+
+<label id="rateLabel">Rate (per 100 per month):</label>
+<input id="rate" type="number" value="2">
+
+<label>Language:</label>
+<select id="language" onchange="changeLanguage()">
+  <option value="en">English</option>
+  <option value="te">తెలుగు</option>
+  <option value="hi">हिंदी</option>
+  <option value="ta">தமிழ்</option>
+  <option value="kn">ಕನ್ನಡ</option>
+  <option value="ml">മലയാളം</option>
+</select>
+
+<button onclick="calculate()">Calculate</button>
+
+<h3 id="result"></h3>
+</div>
+</body>
+</html>
