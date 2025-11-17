@@ -19,7 +19,6 @@
         --glass-blur: 14px;
         --muted: rgba(255,255,255,0.68);
       }
-
       html,body{height:100%;}
       body{
         font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial;
@@ -58,11 +57,14 @@
       .btn-outline.custom{ background:transparent; border:1px solid rgba(255,255,255,0.04); color:var(--muted); border-radius:10px }
 
       /* Result card styles */
-      .stat{ padding:16px; border-radius:12px; background:linear-gradient(180deg, rgba(255,255,255,0.015), rgba(255,255,255,0.01)); border:1px solid rgba(255,255,255,0.02); text-align:center }
+      .stat{ padding:16px; border-radius:12px; background:linear-gradient(180deg, rgba(255,255,255,0.015), rgba(255,255,255,0.01)); border:1px solid rgba(255,255,255,0.03); text-align:center }
       .stat .value{ font-weight:800; font-size:1.35rem; margin-top:6px }
       .muted-small{ font-size:13px; color:var(--muted) }
 
-      pre.break{ background: rgba(255,255,255,0.02); padding:14px; border-radius:10px; color:#dff3ff; overflow:auto }
+      pre.break{ background: rgba(255,255,255,0.02); padding:14px; border-radius:10px; color:#dff3ff; overflow:auto; max-height:240px; }
+
+      /* small helpers */
+      .small-muted { font-size:12px; color:var(--muted) }
 
       /* Responsive */
       @media (max-width:991px){ .panel{ grid-template-columns: 1fr; } .panel-right{ order: -1 } }
@@ -71,6 +73,8 @@
       .panel{ transform: translateY(12px); opacity:0; animation: lift .6s ease .08s forwards }
       @keyframes lift{ to{ transform:none; opacity:1 } }
 
+      /* subtle badge for method */
+      .method-badge { font-size:12px; padding:6px 10px; border-radius:999px; background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.02); color:var(--muted); display:inline-block; margin-bottom:6px; }
     </style>
   </head>
   <body>
@@ -93,14 +97,7 @@
               <p id="mainLead" class="lead">Strict 30-day months. Year = 360 days. Rate shown as ₹ per ₹100 / month.</p>
             </div>
             <div class="ms-auto">
-              <select id="lang" class="form-select form-select-sm w-auto" aria-label="Language selector">
-                <option value="en">English</option>
-                <option value="te">తెలుగు</option>
-                <option value="hi">हिन्दी</option>
-                <option value="ta">தமிழ்</option>
-                <option value="kn">ಕನ್ನಡ</option>
-                <option value="ml">മലയാളം</option>
-              </select>
+              <select id="lang" class="form-select form-select-sm w-auto" aria-label="Language selector"></select>
             </div>
           </div>
 
@@ -127,6 +124,14 @@
                   <span id="rateSuffix" class="input-group-text">₹ / ₹100 / mo</span>
                 </div>
                 <div id="helperRate" class="muted-small mt-1">Default: ₹2 per ₹100 per month. Change to adjust.</div>
+              </div>
+
+              <div class="col-12">
+                <label class="form-label">Calculation Method</label>
+                <select id="method" class="form-select">
+                  <!-- options will be populated -->
+                </select>
+                <div class="small-muted mt-1">Pick the day count / interest convention to use for the calculation.</div>
               </div>
 
               <div class="col-12 d-flex gap-2 justify-content-end mt-2">
@@ -195,217 +200,513 @@
       </section>
     </main>
 
-
     <script>
-      // translations for interface (mixed mode: numbers and ₹ remain same; text translated)
-      const translations = {
+      // ---------- TRANSLATIONS: full deep translations for 15 languages ----------
+      const locales = {
         en: {
+          code: 'en', name: 'English',
           mainTitle: 'Interest Calculator — 30/360',
-          lead: 'Strict 30-day months. Year = 360 days. Rate shown as ₹ per ₹100 / month.',
+          lead: 'Choose method and dates. Rate is shown as ₹ per ₹100 per month.',
           amount: 'Principal Amount (₹)',
           amountPlaceholder: 'e.g. 5000',
-          from: 'From Date',
-          to: 'To Date',
+          from: 'From Date', to: 'To Date',
           rate: 'Interest Rate (₹ per ₹100 per month)',
           rateSuffix: '₹ / ₹100 / mo',
           helperRate: 'Default: ₹2 per ₹100 per month. Change to adjust.',
-          calc: 'Calculate',
-          reset: 'Reset',
-          resultsLabel: 'Results (360-day basis)',
+          calc: 'Calculate', reset: 'Reset',
+          resultsLabel: 'Results',
           summary: 'Summary',
           eachMonth: 'Each month = 30 days',
-          outDays: 'Total Days',
-          outMonths: 'Total Months',
-          outRate: 'Monthly Rate (₹/100)',
-          outInterest: 'Interest',
-          outTotal: 'Total Amount (Principal + Interest)',
+          outDays: 'Total Days', outMonths: 'Total Months', outRate: 'Monthly Rate (₹/100)',
+          outInterest: 'Interest', outTotal: 'Total Amount (Principal + Interest)',
           breakdown: 'Calculation Breakdown',
           alertInvalidAmount: 'Enter a valid principal amount',
           alertSelectDates: 'Select both From and To dates',
-          alertToBeforeFrom: 'To Date must be same or after From Date',
-          daysSuffix: 'days',
-          monthsSuffix: 'months',
-          fromLabel: 'From',
-          toLabel: 'To',
-          calculationLabel: 'Calculation (strict 30/360):'
+          alertToBeforeFrom: 'To Date must be the same as or after From Date',
+          daysSuffix: 'days', monthsSuffix: 'months',
+          fromLabel: 'From', toLabel: 'To',
+          calculationLabel: 'Calculation:',
+          methods: {
+            bankers30_360: "30/360 (Banker's)",
+            us30_360: "30/360 US (NASD)",
+            euro30_360: "30E/360 (European)",
+            actual_360: "Actual/360",
+            actual_365: "Actual/365",
+            act_act: "ACT/ACT (ISDA)",
+            indian_bank: "Indian Banking (30/360 variant)",
+            custom_month: "Custom (months = actual_days / 30)"
+          }
         },
+
         te: {
+          code: 'te', name: 'తెలుగు',
           mainTitle: 'వడ్డీ గణకం — 30/360',
-          lead: 'ప్రతి సంవత్సరం 360 రోజులు. ప్రతి నెల = 30 రోజులు. రేటు ₹100కి నెలవారిగా చూపబడుతుంది.',
-          amount: 'మూలధనం (₹)',
-          amountPlaceholder: 'ఉదాహరణ: 5000',
-          from: 'ప్రారంభ తేదీ',
-          to: 'ముగింపు తేదీ',
-          rate: 'వడ్డీ రేటు (₹100కి నెలకు)',
-          rateSuffix: '₹ / ₹100 / నెల',
-          helperRate: 'డిఫాల్‍ట్: ₹2 ప్రతి ₹100కు నెలకు. మార్చండి.',
-          calc: 'లెక్కించు',
-          reset: 'రీసెట్',
-          resultsLabel: 'ఫలితాలు (360-దిన ఆధారం)',
-          summary: 'సారాంశం',
-          eachMonth: 'ప్రతి నెల = 30 రోజులు',
-          outDays: 'మొత్తం రోజులు',
-          outMonths: 'మొత్తం నెలలు',
-          outRate: 'నెలవారీ రేటు (₹/100)',
-          outInterest: 'వడ్డీ',
-          outTotal: 'మొత్తం మొత్తం (మూలధనం + వడ్డీ)',
+          lead: 'పద్ధతిని మరియు తేదీలను ఎంచుకోండి. రేటు ₹100కు నెలకు చూపబడుతుంది.',
+          amount: 'మూలధనం (₹)', amountPlaceholder: 'ఉదాహరణ: 5000',
+          from: 'ప్రారంభ తేదీ', to: 'ముగింపు తేదీ',
+          rate: 'వడ్డీ రేటు (₹100కు నెలకు)', rateSuffix: '₹ / ₹100 / నెల',
+          helperRate: 'డిఫాల్ట్: ₹2 ప్రతి ₹100కు నెలకు. మార్చండి.',
+          calc: 'లెక్కించు', reset: 'రీసెట్',
+          resultsLabel: 'ఫలితాలు', summary: 'సారాంశం', eachMonth: 'ప్రతి నెల = 30 రోజులు',
+          outDays: 'మొత్తం రోజులు', outMonths: 'మొత్తం నెలలు', outRate: 'నెలవారీ రేటు (₹/100)', outInterest: 'వడ్డీ', outTotal: 'మొత్తం మొత్తం',
           breakdown: 'లెక్కింపు వివరాలు',
-          alertInvalidAmount: 'సరైన మూలధనాన్ని నమోదు చేయండి',
-          alertSelectDates: 'దయచేసి ప్రారంభం మరియు ముగింపు తేదీలను ఎంచుకోండి',
-          alertToBeforeFrom: 'ముగింపు తేదీ ప్రారంభ తేదీనికంటే పెద్దదుగా ఉండాలి లేదా సమానం కావాలి',
-          daysSuffix: 'రోజులు',
-          monthsSuffix: 'నెలలు',
-          fromLabel: 'From',
-          toLabel: 'To',
-          calculationLabel: 'లెక్కింపు (కఠిన 30/360 పద్దతి):'
+          alertInvalidAmount: 'దయచేసి సరైన మూలధనాన్ని నమోదు చేయండి',
+          alertSelectDates: 'దయచేసి రెండు తేదీలను ఎంచుకోండి',
+          alertToBeforeFrom: 'ముగింపు తేదీ ప్రారంభ తేదీకి సమానంగా లేదా తరువాతగా ఉండాలి',
+          daysSuffix: 'రోజులు', monthsSuffix: 'నెలలు',
+          fromLabel: 'ప్రారంభం', toLabel: 'ముగింపు',
+          calculationLabel: 'లెక్కింపు:',
+          methods: {
+            bankers30_360: "30/360 (బ్యాంకర్ల పద్ధతి)",
+            us30_360: "30/360 US (NASD)",
+            euro30_360: "30E/360 (యూరోపియన్)",
+            actual_360: "వాస్తవ/360",
+            actual_365: "వాస్తవ/365",
+            act_act: "ACT/ACT (ISDA)",
+            indian_bank: "భారత బ్యాంకింగ్ (30/360 వేరియంట్)",
+            custom_month: "కస్టమ్ (నెలలు = వాస్తవ_రోజులు/30)"
+          }
         },
+
         hi: {
+          code: 'hi', name: 'हिन्दी',
           mainTitle: 'ब्याज कैलकुलेटर — 30/360',
-          lead: 'प्रति माह 30 दिन. वर्ष = 360 दिन. दर ₹100 पर प्रति माह दिखाई जाती है.',
-          amount: 'मूल राशि (₹)',
-          amountPlaceholder: 'उदा: 5000',
-          from: 'प्रारंभ तिथि',
-          to: 'समाप्ति तिथि',
-          rate: 'ब्याज दर (₹100 के लिए प्रति माह)',
-          rateSuffix: '₹ / ₹100 / माह',
-          helperRate: 'डिफ़ॉल्ट: ₹2 प्रति ₹100 प्रति माह. समायोजित करें.',
-          calc: 'गणना करें',
-          reset: 'रीसेट',
-          resultsLabel: 'परिणाम (360-दिन आधार)',
-          summary: 'सारांश',
-          eachMonth: 'प्रत्येक माह = 30 दिन',
-          outDays: 'कुल दिन',
-          outMonths: 'कुल महीने',
-          outRate: 'मासिक दर (₹/100)',
-          outInterest: 'ब्याज',
-          outTotal: 'कुल राशि (मूल + ब्याज)',
+          lead: 'मेथड और तारीखें चुनें। दर ₹100 पर प्रति माह दिखाई जाती है।',
+          amount: 'मूल राशी (₹)', amountPlaceholder: 'उदा: 5000',
+          from: 'प्रारंभ तिथि', to: 'समाप्ति तिथि',
+          rate: 'ब्याज दर (₹100 के लिए प्रति माह)', rateSuffix: '₹ / ₹100 / माह',
+          helperRate: 'डिफ़ॉल्ट: ₹2 प्रति ₹100 प्रति माह। समायोजित करें।',
+          calc: 'गणना करें', reset: 'रीसेट',
+          resultsLabel: 'परिणाम', summary: 'सारांश', eachMonth: 'प्रति माह = 30 दिन',
+          outDays: 'कुल दिन', outMonths: 'कुल महीने', outRate: 'मासिक दर (₹/100)', outInterest: 'ब्याज', outTotal: 'कुल राशि',
           breakdown: 'गणना विवरण',
-          alertInvalidAmount: 'कृपया मान्य मूल राशि दर्ज करें',
-          alertSelectDates: 'कृपया प्रारंभ और समाप्ति तिथि चुनें',
+          alertInvalidAmount: 'कृपया मान्य मूल राशी दर्ज करें',
+          alertSelectDates: 'कृपया दोनों तिथियाँ चुनें',
           alertToBeforeFrom: 'समाप्ति तिथि प्रारंभ तिथि के समान या बाद में होनी चाहिए',
-          daysSuffix: 'दिन',
-          monthsSuffix: 'महीने',
-          fromLabel: 'From',
-          toLabel: 'To',
-          calculationLabel: 'गणना (कठोर 30/360):'
+          daysSuffix: 'दिन', monthsSuffix: 'महीने',
+          fromLabel: 'प्रारंभ', toLabel: 'समाप्ति',
+          calculationLabel: 'गणना:',
+          methods: {
+            bankers30_360: "30/360 (बैंकर का तरीका)",
+            us30_360: "30/360 US (NASD)",
+            euro30_360: "30E/360 (यूरोपीय)",
+            actual_360: "वास्तविक/360",
+            actual_365: "वास्तविक/365",
+            act_act: "ACT/ACT (ISDA)",
+            indian_bank: "भारतीय बैंकिंग (30/360 प्रकार)",
+            custom_month: "कस्टम (महीने = वास्तविक_दिन / 30)"
+          }
         },
+
         ta: {
+          code: 'ta', name: 'தமிழ்',
           mainTitle: 'வட்டி கணக்கீடு — 30/360',
-          lead: 'ஒவ்வொரு மாதமும் 30 நாட்கள். ஆண்டு = 360 நாட்கள். விகிதம் ₹100க்கு மாதத்திற்கு காட்டப்படுகிறது.',
-          amount: 'மூலதனம் (₹)',
-          amountPlaceholder: 'உதா: 5000',
-          from: 'தொடக்க தேதி',
-          to: 'முடிவு தேதி',
-          rate: 'வட்டி வீதம் (₹100க்கு மாதம்)',
-          rateSuffix: '₹ / ₹100 / மாதம்',
+          lead: 'முறையையும் தேதிகளையும் தேர்வு செய்க. விகிதம் ₹100க்கு மாதத்திற்கு காட்டப்படும்.',
+          amount: 'மூலதனம் (₹)', amountPlaceholder: 'உதா: 5000',
+          from: 'தொடக்க தேதி', to: 'முடிவு தேதி',
+          rate: 'வட்டி விகிதம் (₹100க்கு மாதம்)', rateSuffix: '₹ / ₹100 / மாதம்',
           helperRate: 'இயல்புநிலை: ₹2 प्रति ₹100 மாதம். மாற்றவும்.',
-          calc: 'கணக்கிடு',
-          reset: 'மீட்டமை',
-          resultsLabel: 'விளைவுகள் (360-நாள் அடிப்படை)',
-          summary: 'சுருக்கம்',
-          eachMonth: 'ஒவ்வொரு மாதமும் = 30 நாட்கள்',
-          outDays: 'மொத்த நாட்கள்',
-          outMonths: 'மொத்த மாதங்கள்',
-          outRate: 'மாதாந்திர விகிதம் (₹/100)',
-          outInterest: 'வட்டி',
-          outTotal: 'மொத்தத் தொகை (மூல + வட்டி)',
+          calc: 'கணக்கிடு', reset: 'மீட்டமை',
+          resultsLabel: ' முடிவுகள்', summary: 'சுருக்கம்', eachMonth: 'ஒரு மாதம் = 30 நாட்கள்',
+          outDays: 'மொத்த நாட்கள்', outMonths: 'மொத்த மாதங்கள்', outRate: 'மாத விகிதம் (₹/100)', outInterest: 'வட்டி', outTotal: 'மொத்த தொகை',
           breakdown: 'கணக்கீட்டு விவரம்',
-          alertInvalidAmount: 'தயவுசெய்து செல்லும் தொகையை உள்ளிடவும்',
-          alertSelectDates: 'தொடக்கமும் முடிவும் தேதிகள் தேர்வு செய்யவும்',
-          alertToBeforeFrom: 'முடிவு தேதி தொடக்கம் அதற்கு மேல் அல்லது சமமாக இருக்க வேண்டும்',
-          daysSuffix: 'நாட்கள்',
-          monthsSuffix: 'மாதங்கள்',
-          fromLabel: 'From',
-          toLabel: 'To',
-          calculationLabel: 'கணக்குகள் (கடுமையான 30/360):'
+          alertInvalidAmount: 'தயவுசெய்து செல்லுபடியாகும் தொகையை உள்ளிடவும்',
+          alertSelectDates: 'தயவுச்செய்து இரு தேதிகளையும் தேர்வு செய்யவும்',
+          alertToBeforeFrom: 'முடிவு தேதி தொடக்க தேதி அல்லது அதற்குப்பிறகு இருக்க வேண்டும்',
+          daysSuffix: 'நாட்கள்', monthsSuffix: 'மாதங்கள்',
+          fromLabel: 'தொடக்கம்', toLabel: 'முடிவு',
+          calculationLabel: 'கணக்கீடு:',
+          methods: {
+            bankers30_360: "30/360 (வங்கி முறை)",
+            us30_360: "30/360 US (NASD)",
+            euro30_360: "30E/360 (ஐரோப்பிய)",
+            actual_360: "உண்மை/360",
+            actual_365: "உண்மை/365",
+            act_act: "ACT/ACT (ISDA)",
+            indian_bank: "இந்திய பேங்கிங் (30/360 வகை)",
+            custom_month: "தனிப்பயன் (மாதங்கள் = உண்மை_தினங்கள்/30)"
+          }
         },
+
         kn: {
+          code: 'kn', name: 'ಕನ್ನಡ',
           mainTitle: 'ಬಡ್ಡಿ ಕ್ಯಾಲ್ಕುಲೇಟರ್ — 30/360',
-          lead: 'ಪ್ರತಿ ತಿಂಗಳು 30 ದಿನಗಳು. ವರ್ಷ = 360 ದಿನಗಳು. ರೇಟು ₹100ಗೆ ತಿಂಗಳಿಗೆ ತೋರಿಸಲಾಗಿದೆ.',
-          amount: 'ಮುಖ್ಯ ಮೊತ್ತ (₹)',
-          amountPlaceholder: 'ಉದಾ: 5000',
-          from: 'ಪ್ರಾರಂಭದ ದಿನಾಂಕ',
-          to: 'ಅಂತ್ಯದ ದಿನಾಂಕ',
-          rate: 'ಬಡ್ಡಿ ದರ (₹100ಗೆ ತಿಂಗಳಿಗೆ)',
-          rateSuffix: '₹ / ₹100 / ತಿಂಗಳು',
-          helperRate: 'ಡೀಫಾಲ್‍ट: ₹2 ಪ್ರತಿ ₹100 ತಿಂಗಳಿಗೆ. ಹೊಂದಿಸಿ.',
-          calc: 'ಲೆಕ್ಕಿಸಿ',
-          reset: 'ರಿಸೆಟ್',
-          resultsLabel: 'ಫಲಿತಾಂಶಗಳು (360-ದಿನ ಆಧಾರ)',
-          summary: 'ಸಾರಾಂಶ',
-          eachMonth: 'ಪ್ರತಿ ತಿಂಗಳು = 30 ದಿನಗಳು',
-          outDays: 'ಒಟ್ಟು দিনಗಳು',
-          outMonths: 'ಒಟ್ಟು ತಿಂಗಳು',
-          outRate: 'ಮಾಸಿಕ ದರ (₹/100)',
-          outInterest: 'ಬಡ್ಡಿ',
-          outTotal: 'ಒಟ್ಟು ಮೊತ್ತ (ಮುಖ್ಯ + ಬಡ್ಡಿ)',
+          lead: 'ವಿಧಾನ ಮತ್ತು ದಿನಾಂಕಗಳನ್ನು ಆಯ್ಕೆಮಾಡಿ. ದರವನ್ನು ₹100ಕ್ಕೆ ತಿಂಗಳಿಗೆ ತೋರಿಸಲಾಗುತ್ತದೆ.',
+          amount: 'ಮುಖ್ಯ ಮೊತ್ತ (₹)', amountPlaceholder: 'ಉದಾ: 5000',
+          from: 'ಆರಂಭ ದಿನಾಂಕ', to: 'ಅಂತಿಮ ದಿನಾಂಕ',
+          rate: 'ಬಡ್ಡಿ ದರ (₹100ಗೆ ತಿಂಗಳಿಗೆ)', rateSuffix: '₹ / ₹100 / ತಿಂಗಳು',
+          helperRate: 'ಡೀಫಾಲ್ಟ್: ₹2 ಪ್ರತಿ ₹100 ತಿಂಗಳಿಗೆ. ಹೊಂದಿಸಿ.',
+          calc: 'ಲೆಕ್ಕಿಸಿ', reset: 'ರಿಸೆಟ್',
+          resultsLabel: 'ಫಲಿತಾಂಶಗಳು', summary: 'ಸಾರಾಂಶ', eachMonth: 'ಪ್ರತಿ ತಿಂಗಳು = 30 ದಿನಗಳು',
+          outDays: 'ಒಟ್ಟು ದಿನಗಳು', outMonths: 'ಒಟ್ಟು ತಿಂಗಳು', outRate: 'ತಿಂಗಳ ದರ (₹/100)', outInterest: 'ಬಡ್ಡಿ', outTotal: 'ಒಟ್ಟು ಮೊತ್ತ',
           breakdown: 'ಲೆಕ್ಕಿಸುವ ವಿವರ',
           alertInvalidAmount: 'ದಯವಿಟ್ಟು ಮಾನ್ಯ ಮೊತ್ತ ನಮೀದಿ',
-          alertSelectDates: 'ದಯವಿಟ್ಟು ಪ್ರಾರಂಭ ಮತ್ತು ಅಂತ್ಯ ದಿನಾಂಕಗಳನ್ನು ಆರಿಸಿ',
-          alertToBeforeFrom: 'ಅಂತ್ಯ ದಿನಾಂಕವು ಪ್ರಾರಂಭದ ದಿನಾಂಕದಂತೆ ಅಥವಾ ನಂತರವೇ ಇರಬೇಕು',
-          daysSuffix: 'ದಿನಗಳು',
-          monthsSuffix: 'ತಿಂಗಳು',
-          fromLabel: 'From',
-          toLabel: 'To',
-          calculationLabel: 'ಲೆಕ್ಕಾಚಾರ (ಕಠಿಣ 30/360):'
+          alertSelectDates: 'ದಯವಿಟ್ಟು ಎರಡು ದಿನಾಂಕಗಳನ್ನು ಆರಿಸಿ',
+          alertToBeforeFrom: 'ಅಂತಿಮ ದಿನಾಂಕವು ಪ್ರಾರಂಭದ ದಿನಾಂಕದಂತೆ ಅಥವಾ ನಂತರವಾಗಿರಲಿ',
+          daysSuffix: 'ದಿನಗಳು', monthsSuffix: 'ತಿಂಗಳು',
+          fromLabel: 'ಆರಂಭ', toLabel: 'ಅಂತ್ಯ',
+          calculationLabel: 'ಲೆಕ್ಕಾಚಾರ:',
+          methods: {
+            bankers30_360: "30/360 (ಬ್ಯಾಂಕರ್ ಪದ್ದತಿ)",
+            us30_360: "30/360 US (NASD)",
+            euro30_360: "30E/360 (ಯುರೋಪಿಯನ್)",
+            actual_360: "ವಾಸ್ತವ/360",
+            actual_365: "ವಾಸ್ತವ/365",
+            act_act: "ACT/ACT (ISDA)",
+            indian_bank: "ಭಾರತೀಯ ಬ್ಯಾಂಕಿಂಗ್ (30/360 ವಿಧ)",
+            custom_month: "ಕಸ್ಟಮ್ (ತಿಂಗಳು = ವಾಸ್ತವ_ದಿನಗಳು/30)"
+          }
         },
+
         ml: {
+          code: 'ml', name: 'മലയാളം',
           mainTitle: 'പലിശ കാൽക്കുലേറ്റർ — 30/360',
-          lead: 'ഓരോ മാസം 30 ദിവസങ്ങൾ. വർഷം = 360 ദിവസം. നിരക്ക് ₹100ക്ക് പ്രതി മാസം കാണിക്കുന്നു.',
-          amount: 'പ്രധാന തുക (₹)',
-          amountPlaceholder: 'ഉദാ: 5000',
-          from: 'ആരംഭ തീയതി',
-          to: 'അവസാന തീയതി',
-          rate: 'പലിശ നിരക്ക് (₹100ക്ക് പ്രതി മാസം)',
-          rateSuffix: '₹ / ₹100 / മാസം',
-          helperRate: 'ഡീഫോൾട്: ₹2 प्रति ₹100 മാസം. ക്രമീകരിക്കുക.',
-          calc: 'പലിശ കണക്കുക',
-          reset: 'റീസെറ്റ്',
-          resultsLabel: 'ഫലങ്ങൾ (360-ദിന അടിസ്ഥാനത്തിൽ)',
-          summary: 'സാരാംശം',
-          eachMonth: 'ഓരോ മാസം = 30 ദിവസം',
-          outDays: 'മൊത്തം ദിവസങ്ങൾ',
-          outMonths: 'മൊത്തം മാസം',
-          outRate: 'മാസ തുക (₹/100)',
-          outInterest: 'പലിശ',
-          outTotal: 'മൊത്തം തുക (പ്രധാനം + പലിശ)',
+          lead: 'രീതി ಮತ್ತು തീയതികൾ തിരഞ്ഞെടുക്കുക. നിരക്ക് ₹100ക്ക് പ്രതി മാസം കാണിക്കുന്നു.',
+          amount: 'പ്രധാന തുക (₹)', amountPlaceholder: 'ഉദാ: 5000',
+          from: 'ആരംഭ തീയതി', to: 'അവസാന തീയതി',
+          rate: 'പലിശ നിരക്ക് (₹100ക്ക് പ്രതി മാസം)', rateSuffix: '₹ / ₹100 / മാസം',
+          helperRate: 'ഡീഫോൾട്ട്: ₹2 प्रति ₹100 മാസം. ക്രമീകരിക്കുക.',
+          calc: 'പലിശ കണക്കുക', reset: 'റീസെറ്റ്',
+          resultsLabel: 'ഫലങ്ങൾ', summary: 'സാരാംശം', eachMonth: 'ഓരോ മാസം = 30 ദിവസം',
+          outDays: 'മൊത്തം ദിവസങ്ങൾ', outMonths: 'മൊത്തം മാസം', outRate: 'മാസ നിരക്ക് (₹/100)', outInterest: 'പലിശ', outTotal: 'മൊത്തം തുക',
           breakdown: 'കണക്കുകൾ വിവരണം',
           alertInvalidAmount: 'ദയവായി ശരിയായ തുക നൽകുക',
-          alertSelectDates: 'ദയവായി ആരംഭവും അവസാനവും തീയതികൾ തിരഞ്ഞെടുക്കുക',
-          alertToBeforeFrom: 'അവസാന തീയതി ആരംഭ തീയതിക്കു സമം അല്ലെങ്കിൽ മേല്‍ ആകണം',
-          daysSuffix: 'ദിവസങ്ങൾ',
-          monthsSuffix: 'മാസങ്ങൾ',
-          fromLabel: 'From',
-          toLabel: 'To',
-          calculationLabel: 'ഗണിതം (കഠിനമായ 30/360):'
+          alertSelectDates: 'ദയവായി രണ്ടു തീയതികളും തിരഞ്ഞെടുക്കുക',
+          alertToBeforeFrom: 'അവസാന തീയതി ആരംഭ തീയതിക്കു സമം അല്ലെങ്കിൽ ശേഷം ആയിരിക്കണം',
+          daysSuffix: 'ദിവസങ്ങൾ', monthsSuffix: 'മാസങ്ങൾ',
+          fromLabel: 'ആരംഭം', toLabel: 'അവസാനം',
+          calculationLabel: 'കണക്കുകൂട്ടൽ:',
+          methods: {
+            bankers30_360: "30/360 (ബാങ്കറിന്റെ രീതിയുടെ)",
+            us30_360: "30/360 US (NASD)",
+            euro30_360: "30E/360 (യൂറോപ്യൻ)",
+            actual_360: "യഥാർത്ഥം/360",
+            actual_365: "യഥാർത്ഥം/365",
+            act_act: "ACT/ACT (ISDA)",
+            indian_bank: "ഇന്ത്യൻ ബാങ്കിംഗ് (30/360 വകഭേദം)",
+            custom_month: "കസ്റ്റം (മാസങ്ങൾ = യഥാർത്ഥ_ദിനങ്ങൾ/30)"
+          }
+        },
+
+        mr: {
+          code: 'mr', name: 'मराठी',
+          mainTitle: 'व्याज कॅल्क्युलेटर — 30/360',
+          lead: 'पद्धत व तारीख निवडा. दर ₹100 साठी प्रति महिना दर्शविला जातो.',
+          amount: 'मुख्य रक्कम (₹)', amountPlaceholder: 'उदा: 5000',
+          from: 'पासून तारीख', to: 'पर्यंत तारीख',
+          rate: 'व्याज दर (₹100 साठी प्रति महिना)', rateSuffix: '₹ / ₹100 / महि',
+          helperRate: 'डिफॉल्ट: ₹2 प्रति ₹100 प्रति महिना. बदल करा.',
+          calc: 'गणना', reset: 'रीसेट',
+          resultsLabel: 'परिणाम', summary: 'सारांश', eachMonth: 'प्रत्येक महिना = 30 दिवस',
+          outDays: 'एकूण दिवस', outMonths: 'एकूण महिने', outRate: 'मासिक दर (₹/100)', outInterest: 'व्याज', outTotal: 'एकूण रक्कम',
+          breakdown: 'गणना तपशील',
+          alertInvalidAmount: 'कृपया वैध रक्कम प्रविष्ट करा',
+          alertSelectDates: 'कृपया दोन्ही तारखा निवडा',
+          alertToBeforeFrom: 'पर्यंत तारीख ते सुरू तारीख किंवा नंतर असावी',
+          daysSuffix: 'दिवस', monthsSuffix: 'महिने',
+          fromLabel: 'पासून', toLabel: 'पर्यंत',
+          calculationLabel: 'गणना:',
+          methods: {
+            bankers30_360: "30/360 (बँकर्स)",
+            us30_360: "30/360 US (NASD)",
+            euro30_360: "30E/360 (युरोपियन)",
+            actual_360: "अॅक्टुअल/360",
+            actual_365: "अॅक्टुअल/365",
+            act_act: "ACT/ACT (ISDA)",
+            indian_bank: "भारतीय बँकिंग (30/360 प्रकार)",
+            custom_month: "कस्टम (महिने = अ‍ॅक्टुअल_दिवस/30)"
+          }
+        },
+
+        gu: {
+          code: 'gu', name: 'ગુજરાતી',
+          mainTitle: 'બ્યાર કેટલક્યુલેટર — 30/360',
+          lead: 'પદ્ધતિ અને તારીખ પસંદ કરો. દર ₹100 માટે પ્રતિ મહિનો બતાવવામાં આવે છે.',
+          amount: 'મૂળ રકમ (₹)', amountPlaceholder: 'ઉદાહરણ: 5000',
+          from: 'પ્રારંભ તારીખ', to: 'સમાપ્તિ તારીખ',
+          rate: 'વજ્ર દર (₹100 માટે પ્રતિ મહિનો)', rateSuffix: '₹ / ₹100 / મહિ',
+          helperRate: 'ડિફોલ્ટ: ₹2 પ્રતિ ₹100 પ્રતિ મહિનો. બદલો.',
+          calc: 'ગણવેશો', reset: 'રીસેટ',
+          resultsLabel: 'પરિણામો', summary: 'સારાંશ', eachMonth: 'દર મહિનો = 30 દિવસ',
+          outDays: 'કુલ દિવસો', outMonths: 'કુલ મહિના', outRate: 'માસિક દર (₹/100)', outInterest: 'બ્યાર', outTotal: 'કુલ રકમ',
+          breakdown: 'ગણતરી વિગતો',
+          alertInvalidAmount: 'કૃપા કરી માન્ય રકમ દાખલ કરો',
+          alertSelectDates: 'કૃપા કરી બંને તારીખો પસંદ કરો',
+          alertToBeforeFrom: 'અંત તારીખ શરૂઆતની તારીખથી સમાન અથવા પછી હોવી જ જોઈએ',
+          daysSuffix: 'દિવસ', monthsSuffix: 'મહિના',
+          fromLabel: 'થી', toLabel: 'પર્યંત',
+          calculationLabel: 'ગણતરી:',
+          methods: {
+            bankers30_360: "30/360 (બેનકર્સ)",
+            us30_360: "30/360 US (NASD)",
+            euro30_360: "30E/360 (યુરોપિયન)",
+            actual_360: "એક્યુઅલ/360",
+            actual_365: "એક્યુઅલ/365",
+            act_act: "ACT/ACT (ISDA)",
+            indian_bank: "ઇન્ડિયન બેન્કિંગ (30/360 પ્રકાર)",
+            custom_month: "કસ્ટમ (મહિના = રિયલ_દિવસ/30)"
+          }
+        },
+
+        bn: {
+          code: 'bn', name: 'বাংলা',
+          mainTitle: 'সুদ গণক — 30/360',
+          lead: 'পদ্ধতি ও তারিখ নির্বাচন করুন। হারটি ₹100 প্রতি মাসে দেখানো হয়।',
+          amount: 'মূল পরিমাণ (₹)', amountPlaceholder: 'উদাহরণ: 5000',
+          from: 'শুরু তারিখ', to: 'শেষ তারিখ',
+          rate: 'সুদ হার (₹100 প্রতি মাসে)', rateSuffix: '₹ / ₹100 / মাস',
+          helperRate: 'ডিফল্ট: ₹2 প্রতি ₹100 প্রতি মাসে। পরিবর্তন করুন।',
+          calc: 'গণনা', reset: 'রিসেট',
+          resultsLabel: 'ফলাফল', summary: 'সারসংক্ষেপ', eachMonth: 'প্রতি মাস = 30 দিন',
+          outDays: 'মোট দিন', outMonths: 'মোট মাস', outRate: 'মাসিক হার (₹/100)', outInterest: 'সুদ', outTotal: 'মোট পরিমাণ',
+          breakdown: 'গণনার বিস্তারিত',
+          alertInvalidAmount: 'অনুগ্রহ করে একটি বৈধ পরিমাণ লিখুন',
+          alertSelectDates: 'অনুগ্রহ করে উভয় তারিখ নির্বাচন করুন',
+          alertToBeforeFrom: 'শেষ তারিখ শুরু তারিখের সমান বা পরবর্তীতে হতে হবে',
+          daysSuffix: 'দিন', monthsSuffix: 'মাস',
+          fromLabel: 'থেকে', toLabel: 'পর্যন্ত',
+          calculationLabel: 'গণনা:',
+          methods: {
+            bankers30_360: "30/360 (ব্যাঙ্কারের)",
+            us30_360: "30/360 US (NASD)",
+            euro30_360: "30E/360 (ইউরোপীয়)",
+            actual_360: "এ্যাকচুয়াল/360",
+            actual_365: "এ্যাকচুয়াল/365",
+            act_act: "ACT/ACT (ISDA)",
+            indian_bank: "ভারতীয় ব্যাঙ্কিং (30/360 ধাঁচ)",
+            custom_month: "কাস্টম (মাস = বাস্তব_দিন/30)"
+          }
+        },
+
+        pa: {
+          code: 'pa', name: 'ਪੰਜਾਬੀ',
+          mainTitle: 'ਸੁਦ ਕੈਲਕੁਲੇਟਰ — 30/360',
+          lead: 'ਤਰੀਕਾ ਅਤੇ ਤਾਰੀਖਾਂ ਚੁਣੋ। ਦਰ ₹100 ਲਈ ਪ੍ਰਤੀ ਮਹੀਨਾ ਦਿਖਾਈ ਜਾਂਦੀ ਹੈ।',
+          amount: 'ਮੂਲ ਰਕਮ (₹)', amountPlaceholder: 'ਉਦਾਹਰਣ: 5000',
+          from: 'ਸ਼ੁਰੂ ਦੀ ਤਾਰੀਖ', to: 'ਅੰਤ ਤਾਰੀਖ',
+          rate: 'ਸੁਦ ਦਰ (₹100 ਲਈ ਪ੍ਰਤੀ ਮਹੀਨਾ)', rateSuffix: '₹ / ₹100 / ਮਹੀ',
+          helperRate: 'ਡਿਫਾਲਟ: ₹2 ਪ੍ਰਤੀ ₹100 ਪ੍ਰਤੀ ਮਹੀਨਾ। ਢਾਲੋ।',
+          calc: 'ਗਣਨਾ', reset: 'ਰੀਸੈੱਟ',
+          resultsLabel: 'ਨਤੀਜੇ', summary: 'ਸਾਰ', eachMonth: 'ਹਰੇਕ ਮਹੀਨਾ = 30 ਦਿਨ',
+          outDays: 'ਕੁੱਲ ਦਿਨ', outMonths: 'ਕੁੱਲ ਮਹੀਨੇ', outRate: 'ਮਾਸਿਕ ਦਰ (₹/100)', outInterest: 'ਸੁਦ', outTotal: 'ਕੁੱਲ ਰਕਮ',
+          breakdown: 'ਗਣਨਾ ਵੇਰਵਾ',
+          alertInvalidAmount: 'ਕਿਰਪਾ ਕਰਕੇ ਵੈਧ ਰਕਮ ਦਾਖਲ ਕਰੋ',
+          alertSelectDates: 'ਕਿਰਪਾ ਕਰਕੇ ਦੋਹਾਂ ਤਰੀਕਾਂ ਚੁਣੋ',
+          alertToBeforeFrom: 'ਅੰਤ ਤਾਰੀਖ ਸ਼ੁਰੂ ਤਾਰੀਖ ਦੇ ਬਰਾਬਰ ਜਾਂ ਬਾਅਦ ਹੋਣੀ ਚਾਹੀਦੀ ਹੈ',
+          daysSuffix: 'ਦਿਨ', monthsSuffix: 'ਮਹੀਨੇ',
+          fromLabel: 'ਤੋਂ', toLabel: 'ਤੱਕ',
+          calculationLabel: 'ਗਣਨਾ:',
+          methods: {
+            bankers30_360: "30/360 (ਬੈਂਕਰ)",
+            us30_360: "30/360 US (NASD)",
+            euro30_360: "30E/360 (ਯੂਰੋਪੀਅਨ)",
+            actual_360: "ਵਾਸਤਵ/360",
+            actual_365: "ਵਾਸਤਵ/365",
+            act_act: "ACT/ACT (ISDA)",
+            indian_bank: "ਭਾਰਤੀ ਬੈਂਕਿੰਗ (30/360 ਵਰਜਨ)",
+            custom_month: "ਕਸਟਮ (ਮਹੀਨੇ = ਵਾਸਤਵ_ਦਿਨ/30)"
+          }
+        },
+
+        or: {
+          code: 'or', name: 'ଓଡ଼ିଆ',
+          mainTitle: 'ସୁଦ ଗଣକ — 30/360',
+          lead: 'ପদ্ধତି ଏବଂ ତାରିख ଚୟନ କରନ୍ତୁ। ହାର ₹100 ପାଇଁ ପ୍ରତି ମାସ ଦେଖାଯାଏ।',
+          amount: 'ମୂଳ ରାଶି (₹)', amountPlaceholder: 'ଉଦାହରଣ: 5000',
+          from: 'ଆରମ୍ଭ ତାରିଖ', to: 'ଶେଷ ତାରିଖ',
+          rate: 'ସୁଦ ହାର (₹100 ପାଇଁ ପ୍ରତି ମାସ)', rateSuffix: '₹ / ₹100 / ମାସ',
+          helperRate: 'ଡିଫଲ୍ଟ: ₹2 ପ୍ରତି ₹100 ପ୍ରତି ମାସ। ପରିବର୍ତ୍ତନ କରନ୍ତୁ।',
+          calc: 'ଗଣନା', reset: 'ରିସେଟ',
+          resultsLabel: 'ଫଳାଫଳ', summary: 'ସାରାଂଶ', eachMonth: 'ପ୍ରତି ମାସ = 30 ଦିନ',
+          outDays: 'ମୋଟ ଦିନ', outMonths: 'ମୋଟ ମାସ', outRate: 'ମାସିକ ହାର (₹/100)', outInterest: 'ସୁଦ', outTotal: 'ମୋଟ ରାଶି',
+          breakdown: 'ଗଣନା ବିବରଣୀ',
+          alertInvalidAmount: 'ଦୟାକରି ଏକ ବୈଧ ରାଶି ଲେଖନ୍ତୁ',
+          alertSelectDates: 'ଦୟାକରି ଦୁଇଟି ତାରିଖ ଚୟନ କରନ୍ତୁ',
+          alertToBeforeFrom: 'ଶେଷ ତାରିଖ ଆରମ୍ଭ ତାରିଖ ସମାନ କିମ୍ବା ପରେ ହେବା ଉଚିତ୍',
+          daysSuffix: 'ଦିନ', monthsSuffix: 'ମାସ',
+          fromLabel: 'ରୁ', toLabel: 'ପର୍ଯ୍ୟନ୍ତ',
+          calculationLabel: 'ଗଣନା:',
+          methods: {
+            bankers30_360: "30/360 (ବ୍ୟାଙ୍କର୍ସ)",
+            us30_360: "30/360 US (NASD)",
+            euro30_360: "30E/360 (ୟୁରୋପିୟନ)",
+            actual_360: "ଏକ୍ଚୁଆଲ/360",
+            actual_365: "ଏକ୍ଚୁଆଲ/365",
+            act_act: "ACT/ACT (ISDA)",
+            indian_bank: "ଭାରତୀୟ ବ୍ୟାଙ୍କିଙ୍ଗ (30/360 ବିଭେଦ)",
+            custom_month: "କଷ୍ଟମ୍ (ମାସ = ଏକ୍ଚୁଆଲ_ଦିନ/30)"
+          }
+        },
+
+        ur: {
+          code: 'ur', name: 'اردو',
+          mainTitle: 'سود کیلکولیٹر — 30/360',
+          lead: 'طریقہ اور تاریخیں منتخب کریں۔ شرح ₹100 کے لیے ماہانہ دکھائی جاتی ہے۔',
+          amount: 'اصل رقم (₹)', amountPlaceholder: 'مثال: 5000',
+          from: 'شروع تاریخ', to: 'ختم ہونے کی تاریخ',
+          rate: 'سود کی شرح (₹100 کے لیے ماہانہ)', rateSuffix: '₹ / ₹100 / ماہ',
+          helperRate: 'پہلے سے طے شدہ: ₹2 فی ₹100 فی ماہ. تبدیل کریں۔',
+          calc: 'حساب کریں', reset: 'ری سیٹ',
+          resultsLabel: 'نتائج', summary: 'خلاصہ', eachMonth: 'ہر ماہ = 30 دن',
+          outDays: 'کل دن', outMonths: 'کل مہینے', outRate: 'ماہانہ شرح (₹/100)', outInterest: 'سود', outTotal: 'کل رقم',
+          breakdown: 'حساب کی تفصیل',
+          alertInvalidAmount: 'براہ کرم درست رقم درج کریں',
+          alertSelectDates: 'براہ کرم دونوں تاریخیں منتخب کریں',
+          alertToBeforeFrom: 'ختم ہونے کی تاریخ شروع کی تاریخ کے برابر یا بعد ہونی چاہئے',
+          daysSuffix: 'دن', monthsSuffix: 'مہینے',
+          fromLabel: 'شروع', toLabel: 'ختم',
+          calculationLabel: 'حساب:',
+          methods: {
+            bankers30_360: "30/360 (بینکرز)",
+            us30_360: "30/360 US (NASD)",
+            euro30_360: "30E/360 (یورپی)",
+            actual_360: "اصل/360",
+            actual_365: "اصل/365",
+            act_act: "ACT/ACT (ISDA)",
+            indian_bank: "ہندوستانی بینکنگ (30/360 قسم)",
+            custom_month: "کسٹم (مہینے = اصل_دن/30)"
+          }
+        },
+
+        si: {
+          code: 'si', name: 'සිංහල',
+          mainTitle: 'වාInterest ගණකය — 30/360',
+          lead: 'විධිය සහ දිනයන් තෝරන්න. අනුපාතිකය ₹100ට මාසිකව පෙන්වයි.',
+          amount: 'ප්‍රධාන එකතුව (₹)', amountPlaceholder: 'උදා: 5000',
+          from: 'සිට දිනය', to: 'වටින දිනය',
+          rate: 'වුද්ධි අනුපාතිකය (₹100 කට මාසික)', rateSuffix: '₹ / ₹100 / මාස',
+          helperRate: ' පෙරනිමි: ₹2 ප්‍රති ₹100 මාසිකව. වෙනස් කරන්න.',
+          calc: 'ගණනය', reset: 'රිසෙට්',
+          resultsLabel: 'ප්‍රතිඵල', summary: 'සාරාංශය', eachMonth: 'සෑම මාසෙකම = 30 දින',
+          outDays: 'සම්පූර්ණ දින', outMonths: 'සම්පූර්ණ මාස', outRate: 'මාසික අනුපාතිකය (₹/100)', outInterest: 'වෙනු', outTotal: 'සම්පූර්ණ මුලුතැන්ගෙය',
+          breakdown: 'ගණනය විස්තර',
+          alertInvalidAmount: 'කරුණාකර වලංගු මුදලක් ඇතුළත් කරන්න',
+          alertSelectDates: 'කරුණාකර දෙවැනි දිනයන් තෝරන්න',
+          alertToBeforeFrom: 'අවසාන දිනය ආරම්භක දිනයට සමාන හෝ පසු විය යුතුය',
+          daysSuffix: 'දින', monthsSuffix: 'මාස',
+          fromLabel: 'සිට', toLabel: 'පසු',
+          calculationLabel: 'ගණනය:',
+          methods: {
+            bankers30_360: "30/360 (බැංකු නිලධාරී)",
+            us30_360: "30/360 US (NASD)",
+            euro30_360: "30E/360 (යුරෝපියානු)",
+            actual_360: "යථාර්ථ/360",
+            actual_365: "යථාර්ථ/365",
+            act_act: "ACT/ACT (ISDA)",
+            indian_bank: "ඉන්දියානු බැංකු (30/360 විකල්ප)",
+            custom_month: "අභිරුචි (මාස = යථාර්ථ_දිනයන්/30)"
+          }
+        },
+
+        ne: {
+          code: 'ne', name: 'नेपाली',
+          mainTitle: 'ब्याज क्याल्कुलेटर — 30/360',
+          lead: 'विधि र मिति छान्नुहोस्। दर ₹100 प्रति महिना देखाइन्छ।',
+          amount: 'प्रमुख रकम (₹)', amountPlaceholder: 'जस्तै: 5000',
+          from: 'देखि मिति', to: 'सम्म मिति',
+          rate: 'ब्याज दर (₹100 प्रति महिना)', rateSuffix: '₹ / ₹100 / महिना',
+          helperRate: 'पूर्वनिर्धारित: ₹2 प्रति ₹100 प्रति महिना। परिवर्तन गर्नुहोस्।',
+          calc: 'गणना', reset: 'रिसेट',
+          resultsLabel: 'नतीजा', summary: 'सारांश', eachMonth: 'प्रत्येक महिना = 30 दिन',
+          outDays: 'कुल दिन', outMonths: 'कुल महिना', outRate: 'मासिक दर (₹/100)', outInterest: 'ब्याज', outTotal: 'कुल रकम',
+          breakdown: 'गणना विवरण',
+          alertInvalidAmount: 'कृपया मान्य रकम प्रविष्ट गर्नुहोस्',
+          alertSelectDates: 'कृपया दुवै मिति छान्नुहोस्',
+          alertToBeforeFrom: 'तीन मिति शुरू मिति भन्दा बराबर वा पछि हुनुपर्छ',
+          daysSuffix: 'दिन', monthsSuffix: 'महिना',
+          fromLabel: 'देखि', toLabel: 'सम्म',
+          calculationLabel: 'गणना:',
+          methods: {
+            bankers30_360: "30/360 (ब्यांकरको)",
+            us30_360: "30/360 US (NASD)",
+            euro30_360: "30E/360 (यूरोपियन)",
+            actual_360: "वास्तविक/360",
+            actual_365: "वास्तविक/365",
+            act_act: "ACT/ACT (ISDA)",
+            indian_bank: "भारतीय बैंकिङ (30/360 प्रकार)",
+            custom_month: "कस्टम (महिना = वास्तविक_दिन/30)"
+          }
+        },
+
+        es: {
+          code: 'es', name: 'Español',
+          mainTitle: 'Calculadora de Interés — 30/360',
+          lead: 'Elija el método y las fechas. La tasa se muestra como ₹ por ₹100 por mes.',
+          amount: 'Importe Principal (₹)', amountPlaceholder: 'p.ej. 5000',
+          from: 'Fecha Desde', to: 'Fecha Hasta',
+          rate: 'Tasa de Interés (₹ por ₹100 por mes)', rateSuffix: '₹ / ₹100 / mes',
+          helperRate: 'Por defecto: ₹2 por ₹100 por mes. Cambie si desea.',
+          calc: 'Calcular', reset: 'Reiniciar',
+          resultsLabel: 'Resultados', summary: 'Resumen', eachMonth: 'Cada mes = 30 días',
+          outDays: 'Días Totales', outMonths: 'Meses Totales', outRate: 'Tasa Mensual (₹/100)', outInterest: 'Interés', outTotal: 'Importe Total',
+          breakdown: 'Desglose del Cálculo',
+          alertInvalidAmount: 'Introduce una cantidad principal válida',
+          alertSelectDates: 'Selecciona ambas fechas Desde y Hasta',
+          alertToBeforeFrom: 'La fecha Hasta debe ser igual o posterior a la fecha Desde',
+          daysSuffix: 'días', monthsSuffix: 'meses',
+          fromLabel: 'Desde', toLabel: 'Hasta',
+          calculationLabel: 'Cálculo:',
+          methods: {
+            bankers30_360: "30/360 (Banco)",
+            us30_360: "30/360 US (NASD)",
+            euro30_360: "30E/360 (Europeo)",
+            actual_360: "Actual/360",
+            actual_365: "Actual/365",
+            act_act: "ACT/ACT (ISDA)",
+            indian_bank: "Banca India (variante 30/360)",
+            custom_month: "Personalizado (meses = días_actuales / 30)"
+          }
         }
       };
 
-      // helper: format INR (numbers & currency retained in English format)
-      function fmtINR(n){
-        return '₹' + Number(n).toLocaleString('en-IN', {minimumFractionDigits:2, maximumFractionDigits:2});
+      // Populate language dropdown
+      const langSelect = document.getElementById('lang');
+      Object.values(locales).forEach(loc => {
+        const opt = document.createElement('option');
+        opt.value = loc.code; opt.text = loc.name;
+        langSelect.appendChild(opt);
+      });
+
+      // Methods list (keys correspond to locale method keys)
+      const methodsList = [
+        { key: 'bankers30_360', id: 'bankers30_360' },
+        { key: 'us30_360', id: 'us30_360' },
+        { key: 'euro30_360', id: 'euro30_360' },
+        { key: 'actual_360', id: 'actual_360' },
+        { key: 'actual_365', id: 'actual_365' },
+        { key: 'act_act', id: 'act_act' },
+        { key: 'indian_bank', id: 'indian_bank' },
+        { key: 'custom_month', id: 'custom_month' }
+      ];
+
+      function populateMethods() {
+        const sel = document.getElementById('method');
+        sel.innerHTML = '';
+        const cur = locales[localLang()] || locales.en;
+        Object.keys(cur.methods).forEach(k => {
+          const o = document.createElement('option');
+          o.value = k; o.text = cur.methods[k];
+          sel.appendChild(o);
+        });
       }
 
-      // apply selected language to ALL UI text (including placeholders, helpers, breakdown words, alerts)
-      const langEl = document.getElementById('lang');
-      function applyLang(code){
-        const t = translations[code] || translations.en;
+      function localLang(){ return (langSelect.value || 'en'); }
 
-        // Left panel
+      // Apply language translations (full)
+      function applyLang(code) {
+        const t = locales[code] || locales.en;
+
         document.getElementById('mainTitle').innerText = t.mainTitle;
         document.getElementById('mainLead').innerText = t.lead;
         document.getElementById('lblAmount').innerText = t.amount;
-        document.getElementById('amount').placeholder = t.amountPlaceholder;
+        document.getElementById('amount').placeholder = t.amountPlaceholder || '';
         document.getElementById('lblFrom').innerText = t.from;
         document.getElementById('lblTo').innerText = t.to;
         document.getElementById('lblRate').innerText = t.rate;
-        document.getElementById('rate').placeholder = (t.amountPlaceholder === undefined) ? '' : t.amountPlaceholder;
         document.getElementById('rateSuffix').innerText = t.rateSuffix;
         document.getElementById('helperRate').innerText = t.helperRate;
         document.getElementById('btnCalc').innerText = t.calc;
         document.getElementById('btnReset').innerText = t.reset;
-
-        // Right panel
         document.getElementById('resultsLabel').innerText = t.resultsLabel;
         document.getElementById('resultHeadline').innerText = t.summary;
         document.getElementById('eachMonthText').innerText = t.eachMonth;
@@ -416,129 +717,216 @@
         document.getElementById('lblOutTotal').innerText = t.outTotal;
         document.getElementById('lblBreakdown').innerText = t.breakdown;
 
-        // store these for use in calculation & breakdown
-        currentLang = code;
+        populateMethods();
       }
 
-      // current language code
-      let currentLang = 'en';
-      applyLang(currentLang);
+      // set defaults
+      langSelect.value = 'en';
+      applyLang('en');
 
-      langEl.addEventListener('change', e => {
-        applyLang(e.target.value);
-      });
+      // Update when language changes
+      langSelect.addEventListener('change', (e) => applyLang(e.target.value));
 
-      // calculate function (strict 30/360)
-      function calculate(){
-        const t = translations[currentLang] || translations.en;
+      // ---------- Calculation helpers for different day-count conventions ----------
+      function daysBetweenActual(fd, td) {
+        const one = 24*60*60*1000;
+        return Math.round((td - fd) / one);
+      }
 
-        const amountEl = document.getElementById('amount');
-        const rateEl = document.getElementById('rate');
-
-        const amount = parseFloat(amountEl.value);
-        const rate = parseFloat(rateEl.value);
-        const from = document.getElementById('fromDate').value;
-        const to = document.getElementById('toDate').value;
-
-        // basic validation with translated alerts
-        if (isNaN(amount) || amount < 0){
-          alert(t.alertInvalidAmount);
-          amountEl.focus();
-          return;
-        }
-        if (!from || !to){
-          alert(t.alertSelectDates);
-          return;
-        }
-
-        const fd = new Date(from);
-        const td = new Date(to);
-        if (td < fd){
-          alert(t.alertToBeforeFrom);
-          return;
-        }
-
-        // Extract components (local time)
-        const fy = fd.getFullYear(); const fm = fd.getMonth() + 1; const fday = fd.getDate();
-        const ty = td.getFullYear(); const tm = td.getMonth() + 1; const tday = td.getDate();
-
+      // 30/360 Banker's (European bankers / ISDA style: adjust feb? We'll implement strict: cap days >30? original spec)
+      function days_30_360_bankers(fd, td) {
+        // Use strict formula used earlier: year_diff*360 + month_diff*30 + day_diff
+        const fy = fd.getFullYear(), fm = fd.getMonth()+1, fd_day = fd.getDate();
+        const ty = td.getFullYear(), tm = td.getMonth()+1, td_day = td.getDate();
         const year_diff = ty - fy;
         const month_diff = tm - fm;
-        const day_diff = tday - fday;
+        const day_diff = td_day - fd_day;
+        return year_diff*360 + month_diff*30 + day_diff;
+      }
 
-        const total_days = year_diff * 360 + month_diff * 30 + day_diff;
-        const total_months = total_days / 30; // fractional
+      // 30/360 US (NASD)
+      function days_30_360_US(fd, td) {
+        let d1 = fd.getDate(); let d2 = td.getDate();
+        let m1 = fd.getMonth()+1; let m2 = td.getMonth()+1;
+        let y1 = fd.getFullYear(); let y2 = td.getFullYear();
 
-        const interest = (amount / 100) * (isNaN(rate) ? 0 : rate) * total_months;
+        if (d1 === 31) d1 = 30;
+        if (d2 === 31 && d1 === 30) d2 = 30;
+        return (y2 - y1)*360 + (m2 - m1)*30 + (d2 - d1);
+      }
+
+      // 30E/360 (European) - if either date is 31 -> set to 30
+      function days_30E_360(fd, td) {
+        let d1 = fd.getDate(); let d2 = td.getDate();
+        if (d1 === 31) d1 = 30;
+        if (d2 === 31) d2 = 30;
+        const m1 = fd.getMonth()+1, m2 = td.getMonth()+1, y1 = fd.getFullYear(), y2 = td.getFullYear();
+        return (y2 - y1)*360 + (m2 - m1)*30 + (d2 - d1);
+      }
+
+      // ACT/360, ACT/365, ACT/ACT
+      function yearFraction_ACT360(fd, td) {
+        const days = daysBetweenActual(fd, td);
+        return days / 360;
+      }
+      function yearFraction_ACT365(fd, td) {
+        const days = daysBetweenActual(fd, td);
+        return days / 365;
+      }
+      function yearFraction_ACTACT(fd, td) {
+        // Simplified: use actual/365 for typical practical use; (full ISDA requires splitting across leap years)
+        const days = daysBetweenActual(fd, td);
+        return days / 365;
+      }
+
+      // Indian Banking rule - many banks use 30/360; we'll use bankers variant
+      function days_indian_banking(fd, td) {
+        return days_30_360_bankers(fd, td);
+      }
+
+      // Compute yearFraction depending on method key
+      function computeYearFraction(fd, td, methodKey) {
+        switch (methodKey) {
+          case 'bankers30_360':
+            return days_30_360_bankers(fd, td) / 360;
+          case 'us30_360':
+            return days_30_360_US(fd, td) / 360;
+          case 'euro30_360':
+            return days_30E_360(fd, td) / 360;
+          case 'actual_360':
+            return yearFraction_ACT360(fd, td);
+          case 'actual_365':
+            return yearFraction_ACT365(fd, td);
+          case 'act_act':
+            return yearFraction_ACTACT(fd, td);
+          case 'indian_bank':
+            return days_indian_banking(fd, td) / 360;
+          case 'custom_month':
+            // custom: months = actual_days / 30 -> yearFraction = months/12
+            const days = daysBetweenActual(fd, td);
+            return (days / 30) / 12;
+          default:
+            return days_30_360_bankers(fd, td) / 360;
+        }
+      }
+
+      function computeDaysForDisplay(fd, td, methodKey) {
+        switch (methodKey) {
+          case 'bankers30_360': return days_30_360_bankers(fd, td);
+          case 'us30_360': return days_30_360_US(fd, td);
+          case 'euro30_360': return days_30E_360(fd, td);
+          case 'actual_360':
+          case 'actual_365':
+          case 'act_act': return daysBetweenActual(fd, td);
+          case 'indian_bank': return days_indian_banking(fd, td);
+          case 'custom_month': return daysBetweenActual(fd, td);
+          default: return days_30_360_bankers(fd, td);
+        }
+      }
+
+      // ---------- Main calculate function (keeps your original interest formula but supports many methods) ----------
+      function fmtINR(n){ return '₹' + Number(n).toLocaleString('en-IN', {minimumFractionDigits:2, maximumFractionDigits:2}); }
+
+      function calculate(){
+        const loc = locales[localLang()] || locales.en;
+        const t = loc;
+
+        const amount = parseFloat(document.getElementById('amount').value);
+        const rate = parseFloat(document.getElementById('rate').value);
+        const fromVal = document.getElementById('fromDate').value;
+        const toVal = document.getElementById('toDate').value;
+        const method = document.getElementById('method').value;
+
+        if (isNaN(amount) || amount < 0) { alert(t.alertInvalidAmount); return; }
+        if (!fromVal || !toVal) { alert(t.alertSelectDates); return; }
+
+        const fd = new Date(fromVal);
+        const td = new Date(toVal);
+        if (td < fd) { alert(t.alertToBeforeFrom); return; }
+
+        // year fraction depending on method -> convert to months equivalent
+        const yf = computeYearFraction(fd, td, method);
+        const monthsEquivalent = yf * 12; // months = years * 12
+
+        // interest: (amount / 100) * rate * monthsEquivalent
+        const interest = (amount / 100) * (isNaN(rate) ? 0 : rate) * monthsEquivalent;
         const totalAmount = amount + interest;
 
-        // Update right panel (numbers kept in English format)
-        document.getElementById('outDays').innerText = `${total_days} ${t.daysSuffix}`;
-        document.getElementById('outMonths').innerText = `${Number(total_months.toFixed(6))} ${t.monthsSuffix}`;
+        // days for display using method-specific rules
+        const dispDays = computeDaysForDisplay(fd, td, method);
+        const dispMonths = monthsEquivalent;
+
+        // update UI
+        document.getElementById('outDays').innerText = `${dispDays} ${t.daysSuffix}`;
+        document.getElementById('outMonths').innerText = `${Number(dispMonths.toFixed(6))} ${t.monthsSuffix}`;
         document.getElementById('outRate').innerText = `₹${(isNaN(rate) ? 0 : rate).toFixed(2)}`;
         document.getElementById('outInterest').innerText = fmtINR(interest);
         document.getElementById('outTotal').innerText = fmtINR(totalAmount);
 
-        // Breakdown (translate labels but keep numbers)
+        // breakdown - translated labels, numeric values unchanged
         const lines = [];
         lines.push(`${t.amount}: ₹${Number(amount).toFixed(2)}`);
         lines.push(`${t.rate}: ₹${(isNaN(rate) ? 0 : rate).toFixed(2)} per ₹100 per month`);
         lines.push('');
-        lines.push(`${t.fromLabel}: ${fy}-${String(fm).padStart(2,'0')}-${String(fday).padStart(2,'0')}`);
-        lines.push(`${t.toLabel}:   ${ty}-${String(tm).padStart(2,'0')}-${String(tday).padStart(2,'0')}`);
+        lines.push(`${t.fromLabel}: ${fd.getFullYear()}-${String(fd.getMonth()+1).padStart(2,'0')}-${String(fd.getDate()).padStart(2,'0')}`);
+        lines.push(`${t.toLabel}:   ${td.getFullYear()}-${String(td.getMonth()+1).padStart(2,'0')}-${String(td.getDate()).padStart(2,'0')}`);
         lines.push('');
         lines.push(`${t.calculationLabel}`);
-        lines.push(`year_diff = ${year_diff}`);
-        lines.push(`month_diff = ${month_diff}`);
-        lines.push(`day_diff = ${day_diff}`);
+        lines.push(`Method: ${ (t.methods && t.methods[method]) ? t.methods[method] : method }`);
         lines.push('');
-        lines.push(`total_days = year_diff*360 + month_diff*30 + day_diff = ${year_diff}*360 + ${month_diff}*30 + ${day_diff} = ${total_days} ${t.daysSuffix}`);
-        lines.push(`total_months = total_days / 30 = ${total_months.toFixed(6)} ${t.monthsSuffix}`);
+        // add method-specific detail
+        lines.push(`year_fraction = ${yf.toFixed(8)} (years)`);
+        lines.push(`months_equivalent = year_fraction * 12 = ${monthsEquivalent.toFixed(8)} (months)`);
         lines.push('');
-        lines.push(`Interest = (Principal / 100) * rate * total_months`);
-        lines.push(`         = (${amount.toFixed(2)} / 100) * ${(isNaN(rate)?0:rate).toFixed(4)} * ${total_months.toFixed(6)}`);
+        lines.push(`Interest = (Principal / 100) * rate * months_equivalent`);
+        lines.push(`         = (${amount.toFixed(2)} / 100) * ${(isNaN(rate)?0:rate).toFixed(4)} * ${monthsEquivalent.toFixed(6)}`);
         lines.push(`         = ₹${interest.toFixed(2)}`);
         lines.push('');
         lines.push(`Total Amount = Principal + Interest = ₹${totalAmount.toFixed(2)}`);
 
         document.getElementById('breakdown').innerText = lines.join('\n');
 
-        // smooth focus on results
+        // smooth focus to results
         document.getElementById('outInterest').scrollIntoView({behavior:'smooth', block:'center'});
       }
 
-      // wire actions
+      // wire actions & initializations
       document.getElementById('btnCalc').addEventListener('click', calculate);
       document.getElementById('btnReset').addEventListener('click', () => {
-        // reset values and UI
         document.getElementById('amount').value = '5000';
         document.getElementById('rate').value = '2';
         const today = new Date(); const in30 = new Date(); in30.setDate(today.getDate()+30);
         document.getElementById('fromDate').valueAsDate = today;
         document.getElementById('toDate').valueAsDate = in30;
-        document.getElementById('outDays').innerText = `0 ${translations[currentLang].daysSuffix}`;
-        document.getElementById('outMonths').innerText = `0 ${translations[currentLang].monthsSuffix}`;
+        const t = locales[localLang()] || locales.en;
+        document.getElementById('outDays').innerText = `0 ${t.daysSuffix}`;
+        document.getElementById('outMonths').innerText = `0 ${t.monthsSuffix}`;
         document.getElementById('outInterest').innerText = '₹0.00';
         document.getElementById('outTotal').innerText = '₹0.00';
         document.getElementById('breakdown').innerText = '—';
       });
 
-      // init dates & UI
+      // init sample dates & methods
       (function init(){
         const today = new Date(); const in30 = new Date(); in30.setDate(today.getDate()+30);
         document.getElementById('fromDate').valueAsDate = today;
         document.getElementById('toDate').valueAsDate = in30;
-        // set correct suffixes on first load
-        document.getElementById('outDays').innerText = `0 ${translations[currentLang].daysSuffix}`;
-        document.getElementById('outMonths').innerText = `0 ${translations[currentLang].monthsSuffix}`;
-        // ensure rate suffix uses language
-        document.getElementById('rateSuffix').innerText = translations[currentLang].rateSuffix;
+        // set language selector to en (already) and populate methods
+        populateMethods();
+        // set method default
+        document.getElementById('method').value = 'bankers30_360';
+        // set initial result placeholders
+        const t = locales[localLang()] || locales.en;
+        document.getElementById('outDays').innerText = `0 ${t.daysSuffix}`;
+        document.getElementById('outMonths').innerText = `0 ${t.monthsSuffix}`;
+        document.getElementById('outRate').innerText = `₹2.00`;
+        document.getElementById('outInterest').innerText = '₹0.00';
+        document.getElementById('outTotal').innerText = '₹0.00';
       })();
 
-      // update rateSuffix when language changes
-      langEl.addEventListener('change', () => {
-        const t = translations[langEl.value] || translations.en;
-        document.getElementById('rateSuffix').innerText = t.rateSuffix;
+      // ensure when language changes we repopulate methods in that language
+      document.getElementById('lang').addEventListener('change', (e) => {
+        applyLang(e.target.value);
       });
 
     </script>
